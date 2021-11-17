@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from "@aws-cdk/core";
-import { AwsServerlessStack } from "../lib/aws-serverless-stack";
+import { AwsServerlessAPIStack } from "../lib/aws-serverless-api";
 
 const profileAccountId = process.env.CDK_DEFAULT_ACCOUNT;
 const profileRegion = process.env.CDK_DEFAULT_REGION;
@@ -11,6 +11,9 @@ const envSandbox = {
 };
 
 const app = new cdk.App();
-new AwsServerlessStack(app, "AwsServerlessStack", {
-  env: envSandbox,
+
+new AwsServerlessAPIStack(app, "MyGeneXusServerlessApp", {
+  apiName: "MyApp",
+  stageName: "test-trunk",
+  env: envSandbox
 });

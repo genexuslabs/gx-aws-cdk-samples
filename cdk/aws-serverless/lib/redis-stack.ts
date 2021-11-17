@@ -1,13 +1,17 @@
 import { CfnCacheCluster, CfnSubnetGroup } from "@aws-cdk/aws-elasticache";
 import * as apigateway from "@aws-cdk/aws-apigateway";
-
 import * as cdk from "@aws-cdk/core";
 import * as ec2 from "@aws-cdk/aws-ec2";
 import { Code, Function, Runtime } from "@aws-cdk/aws-lambda";
 import * as s3 from "@aws-cdk/aws-s3";
 import * as iam from "@aws-cdk/aws-iam";
 
-export class AwsServerlessStack extends cdk.Stack {
+export interface ServerlessAPIProps {
+  apiName: string;
+  stageName: string;
+}
+
+export class AwsServerlessAPIStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -141,8 +145,6 @@ export class AwsServerlessStack extends cdk.Stack {
 
     lambdaFunction.grantInvoke(user);
 
-    // 'arn:aws:lambda:us-east-1:432289900904:function:FullGX-ServerlessAPI_';
-
     user.addToPolicy(
       new iam.PolicyStatement({
         actions: ["lambda:*"],
@@ -156,12 +158,11 @@ export class AwsServerlessStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["apigateway:*"],
         resources: [
-          //`arn:aws:apigateway:${this.region}::/restapis`,
           `arn:aws:apigateway:${this.region}::/restapis/${api.restApiId}*`,
         ],
       })
     );
-    //arn:aws:apigateway:us-east-1::/restapis/ysw9b2e72j/deployments
+
     user.addToPolicy(
       new iam.PolicyStatement({
         actions: ["apigateway:*"],
@@ -175,16 +176,6 @@ export class AwsServerlessStack extends cdk.Stack {
         resources: [lambdaRole.roleArn],
       })
     );
-    //error: User: arn:aws:iam::432289900904:user/AwsServerlessStack-DeployServerlessUser71337EED-C2A78YVVDDT6
-    // is not authorized to perform: iam:PassRole on resource:
-    //arn:aws:iam::432289900904:role/AwsServerlessStack-lambdaroleDFE21467-FSASOYXEC1C9
-    //because no identity-based policy allows the iam:PassRole
-    //action (User: arn:aws:iam::432289900904:user/AwsServerlessStack-DeployServerlessUser71337EED-C2A78YVVDDT6
-    //is not authorized to perform: iam:PassRole on resource:
-    //arn:aws:iam::432289900904:role/AwsServerlessStack-lambdaroleDFE21467-FSASOYXEC1C9
-    //because no identity-based policy allows the iam:PassRole action)
-
-    // 👇 create an Output for the API URL
 
     new cdk.CfnOutput(this, "redisEndpoint", {
       value: redis.attrRedisEndpointAddress,
