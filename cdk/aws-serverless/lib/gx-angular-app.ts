@@ -17,7 +17,7 @@ export class GXServerlessStack extends cdk.Stack {
 
     new GeneXusServerlessAngularApp(
       this,
-      "TikTokServerlessApp",
+      "ServerlessApp",
       {
         apiName: props.apiName,
         stageName: props.stageName,
