@@ -36,7 +36,7 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
     super(scope, id);
 
     const stack = cdk.Stack.of(this);
-
+    
     const apiName = props?.apiName || "";
     const stageName = props?.stageName || "";
 
@@ -47,7 +47,7 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
     if (stageName.length == 0) {
       throw new Error("Stage Name cannot be empty");
     }
-
+    
     //Angular App
     const websitePublicBucket = new s3.Bucket(this, `${apiName}-bucket-web`, {
       websiteIndexDocument: "index.html",

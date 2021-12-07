@@ -14,7 +14,7 @@ export interface GXServerlessStackProps extends cdk.StackProps {
 export class GXServerlessStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props: GXServerlessStackProps) {
     super(scope, id, props);
-
+    
     new GeneXusServerlessAngularApp(
       this,
       "ServerlessApp",
