@@ -10,3 +10,4 @@ bin\**.js
 bin\**.d.ts
 lib\**.js
 lib\**.d.ts
+cdk.context.json
