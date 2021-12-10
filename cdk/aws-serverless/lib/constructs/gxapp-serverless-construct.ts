@@ -283,13 +283,19 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
       value: apiName,
       description: "Application Name (API Name)",
     });
-    new cdk.CfnOutput(this, "ApiUrl", {
-      value: api.url,
-      description: "Endpoint URL",
+    new cdk.CfnOutput(this, "WebURL", {
+      value: `https://${webDistribution.domainName}`,
+      description: "Frontend Website URL",
     });
+
+    new cdk.CfnOutput(this, "ApiURL", {
+      value: `https://${webDistribution.domainName}/${stageName}/`,
+      description: "Services API URL (Services URL)",
+    });
+
     new cdk.CfnOutput(this, "IAMRoleARN", {
       value: lambdaRole.roleArn,
-      description: "IAM Role",
+      description: "IAM Role ARN",
     });
     new cdk.CfnOutput(this, "WebsiteBucket", {
       value: websitePublicBucket.bucketName,
@@ -304,9 +310,9 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
       value: accessKey.ref,
       description: "Access Key",
     });
-    new cdk.CfnOutput(this, "SecretKey", {
+    new cdk.CfnOutput(this, "AccessSecretKey", {
       value: accessKey.attrSecretAccessKey,
-      description: "Secret Key",
+      description: "Access Secret Key",
     });
   }
 }
