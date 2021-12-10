@@ -279,17 +279,17 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
       originRequestPolicy: originPolicy,
     });
 
-    new cdk.CfnOutput(this, "apiName", { value: apiName });
-    new cdk.CfnOutput(this, "apiUrl", { value: api.url });
-    new cdk.CfnOutput(this, "roleARN", { value: lambdaRole.roleArn });
-    new cdk.CfnOutput(this, "websiteBucket", {
+    new cdk.CfnOutput(this, "ApiName", { value: apiName });
+    new cdk.CfnOutput(this, "ApiUrl", { value: api.url });
+    new cdk.CfnOutput(this, "IAMRoleARN", { value: lambdaRole.roleArn });
+    new cdk.CfnOutput(this, "WebsiteBucket", {
       value: websitePublicBucket.bucketName,
     });
-    new cdk.CfnOutput(this, "storageBucket", {
+    new cdk.CfnOutput(this, "StorageBucket", {
       value: storageBucket.bucketName,
     });
-    new cdk.CfnOutput(this, "accessKey", { value: accessKey.ref });
-    new cdk.CfnOutput(this, "secretKey", {
+    new cdk.CfnOutput(this, "AccessKey", { value: accessKey.ref });
+    new cdk.CfnOutput(this, "SecretKey", {
       value: accessKey.attrSecretAccessKey,
     });
   }
