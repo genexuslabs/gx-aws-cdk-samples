@@ -36,7 +36,7 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
     super(scope, id);
 
     const stack = cdk.Stack.of(this);
-    
+
     const apiName = props?.apiName || "";
     const stageName = props?.stageName || "";
 
@@ -47,7 +47,7 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
     if (stageName.length == 0) {
       throw new Error("Stage Name cannot be empty");
     }
-    
+
     //Angular App
     const websitePublicBucket = new s3.Bucket(this, `${apiName}-bucket-web`, {
       websiteIndexDocument: "index.html",
@@ -279,18 +279,34 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
       originRequestPolicy: originPolicy,
     });
 
-    new cdk.CfnOutput(this, "ApiName", { value: apiName });
-    new cdk.CfnOutput(this, "ApiUrl", { value: api.url });
-    new cdk.CfnOutput(this, "IAMRoleARN", { value: lambdaRole.roleArn });
+    new cdk.CfnOutput(this, "ApiName", {
+      value: apiName,
+      description: "Application Name (API Name)",
+    });
+    new cdk.CfnOutput(this, "ApiUrl", {
+      value: api.url,
+      description: "Endpoint URL",
+    });
+    new cdk.CfnOutput(this, "IAMRoleARN", {
+      value: lambdaRole.roleArn,
+      description: "IAM Role",
+    });
     new cdk.CfnOutput(this, "WebsiteBucket", {
       value: websitePublicBucket.bucketName,
+      description: "Bucket Name for Angular WebSite Deployment",
     });
     new cdk.CfnOutput(this, "StorageBucket", {
       value: storageBucket.bucketName,
+      description: "Bucket for Storage Service",
     });
-    new cdk.CfnOutput(this, "AccessKey", { value: accessKey.ref });
+
+    new cdk.CfnOutput(this, "AccessKey", {
+      value: accessKey.ref,
+      description: "Access Key",
+    });
     new cdk.CfnOutput(this, "SecretKey", {
       value: accessKey.attrSecretAccessKey,
+      description: "Secret Key",
     });
   }
 }
