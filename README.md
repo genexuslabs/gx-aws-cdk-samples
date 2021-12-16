@@ -1,7 +1,7 @@
 # gx-aws-cdk-samples
 GeneXus AWS CDK Samples for Creating Infrastructure
 
-### How to create Infrastructure
+### How to create the Infrastructure for an AWS Serverless GeneXus Application: 
 
 Run in your cmd: 
 ```
