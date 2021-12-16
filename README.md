@@ -14,3 +14,13 @@ npm run build
 cdk bootstrap aws://ACCOUNT-NUMBER/AWS-REGION
 cdk deploy --app "node ./bin/create-serverless-app.js" -c name=myGXSlsApp -c stage=test
 ```
+
+This stack will Deploy:
+
+- AWS Cloudfront for CDN
+- AWS S3 Bucket for Angular Website hosting
+- AWS S3 Bucket for private storage
+- IAM Credentials with minimal permission
+- Lambda@Edge for Angular URL Rewrite Rules
+- AWS Lambda function for compute
+- AWS API Gateway for Deploying Services (OpenAPI)
