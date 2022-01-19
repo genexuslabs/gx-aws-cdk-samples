@@ -190,22 +190,6 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
     rewriteEdgeFunctionResponse.grantInvoke(user);
     rewriteEdgeFunctionResponse.addAlias("live", {});
 
-    const rewriteConsumerUrlEdgeFunction =
-      new cloudfront.experimental.EdgeFunction(
-        this,
-        `${apiName}RewriteEdgeLambda`,
-        {
-          runtime: lambda.Runtime.NODEJS_14_X,
-          handler: "redirect.handler",
-          code: lambda.Code.fromAsset("lambda"),
-          description: `GeneXus Angular Rewrite Lambda for Cloudfront`,
-          logRetention: logs.RetentionDays.FIVE_DAYS,
-        }
-      );
-
-    rewriteConsumerUrlEdgeFunction.grantInvoke(user);
-    rewriteConsumerUrlEdgeFunction.addAlias("prod", {});
-
     const originPolicy = new cloudfront.OriginRequestPolicy(
       this,
       `${apiName}HttpOriginPolicy`,
@@ -253,11 +237,7 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
             {
               functionVersion: rewriteEdgeFunctionResponse,
               eventType: cloudfront.LambdaEdgeEventType.ORIGIN_RESPONSE,
-            },
-            {
-              functionVersion: rewriteConsumerUrlEdgeFunction,
-              eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
-            },
+            }
           ],
         },
       }
