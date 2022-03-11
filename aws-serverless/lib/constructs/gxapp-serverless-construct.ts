@@ -1,14 +1,15 @@
-import * as apigateway from "@aws-cdk/aws-apigateway";
-import * as cdk from "@aws-cdk/core";
-import * as lambda from "@aws-cdk/aws-lambda";
-import * as s3 from "@aws-cdk/aws-s3";
-import * as iam from "@aws-cdk/aws-iam";
-import * as cloudfront from "@aws-cdk/aws-cloudfront";
-import * as origins from "@aws-cdk/aws-cloudfront-origins";
-import * as acm from "@aws-cdk/aws-certificatemanager";
-import * as logs from "@aws-cdk/aws-logs";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as cdk from "aws-cdk-lib";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as logs from "aws-cdk-lib/aws-logs";
+import { Construct } from 'constructs';
 
-import { OriginProtocolPolicy } from "@aws-cdk/aws-cloudfront";
+import { OriginProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
 
 export interface GeneXusServerlessAngularAppProps extends cdk.StackProps {
   readonly apiName: string;
@@ -27,9 +28,9 @@ const lambdaDefaultTimeout = cdk.Duration.seconds(30);
 const defaultLambdaRuntime = lambda.Runtime.JAVA_11;
 const rewriteEdgeLambdaHandlerName = "rewrite.handler";
 
-export class GeneXusServerlessAngularApp extends cdk.Construct {
+export class GeneXusServerlessAngularApp extends Construct {
   constructor(
-    scope: cdk.Construct,
+    scope: Construct,
     id: string,
     props: GeneXusServerlessAngularAppProps
   ) {
@@ -180,11 +181,12 @@ export class GeneXusServerlessAngularApp extends cdk.Construct {
 
     const rewriteEdgeFunctionResponse =
       new cloudfront.experimental.EdgeFunction(this, `${apiName}EdgeLambda`, {
+        functionName: `${apiName}-${stageName}-EdgeLambda`,
         runtime: lambda.Runtime.NODEJS_14_X,
         handler: rewriteEdgeLambdaHandlerName,
         code: lambda.Code.fromAsset("lambda"),
         description: `GeneXus Angular Rewrite Lambda for Cloudfront`,
-        logRetention: logs.RetentionDays.FIVE_DAYS,
+        logRetention: logs.RetentionDays.FIVE_DAYS        
       });
 
     rewriteEdgeFunctionResponse.grantInvoke(user);

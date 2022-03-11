@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import * as cdk from "@aws-cdk/core";
+import * as cdk from "aws-cdk-lib";
 import { GXServerlessStack } from "../lib/gx-angular-app";
 
 const profileAccountId = process.env.CDK_DEFAULT_ACCOUNT;
@@ -12,7 +12,7 @@ const env = {
 
 const app = new cdk.App();
 
-const apiName = app.node.tryGetContext('name');
+const apiName = app.node.tryGetContext('appname');
 const stageName = app.node.tryGetContext('stage');
 const domainName = app.node.tryGetContext('domain');
 const certificateARN = app.node.tryGetContext('certificateARN');

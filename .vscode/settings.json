@@ -1,8 +1,8 @@
 {
     "files.exclude": {
-        "cdk/aws-serverless/bin/**.js": true, 
+        "aws-serverless/bin/*.js": true, 
         "**/*.d.ts" : true,
-        "cdk/aws-serverless/lib/**.js": true,
-        "cdk/aws-serverless/lib/*/**.js": true
-    }
+        "aws-serverless/lib/**.js": true,
+        "aws-serverless/lib/*/**.js": true,        
+    },   
 }

@@ -1,4 +1,4 @@
-import * as cdk from "@aws-cdk/core";
+import * as cdk from "aws-cdk-lib";
 import { GeneXusServerlessAngularApp } from "./constructs/gxapp-serverless-construct";
 
 export interface GXServerlessStackProps extends cdk.StackProps {

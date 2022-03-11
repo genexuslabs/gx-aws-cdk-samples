@@ -102,6 +102,7 @@ dist
 
 # TernJS port file
 .tern-port
-cdk/aws-serverless/bin/*.js
-cdk/aws-serverless/lib/constructs/*.js
-cdk/aws-serverless/lib/*.js
+aws-serverless/bin/*.js
+aws-serverless/lib/constructs/*.js
+aws-serverless/lib/*.js
+
