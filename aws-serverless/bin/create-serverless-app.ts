@@ -25,7 +25,7 @@ if (!stageName) {
   throw new Error('"stageName" parameter must be specified for Stage Name');
 }
 
-new GXServerlessStack(app, `${apiName}-Stack`, {
+new GXServerlessStack(app, `${apiName}-${stageName}-Stack`, {
   env: env,
   apiName: apiName,
   webDomainName: domainName,
