@@ -1,5 +1,7 @@
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from "aws-cdk-lib";
+import {Rule, Schedule} from "aws-cdk-lib/aws-events";
+import {LambdaFunction} from "aws-cdk-lib/aws-events-targets";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
@@ -19,6 +21,7 @@ import * as rds from 'aws-cdk-lib/aws-rds';
 
 import { OriginProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
 import { timeStamp } from "console";
+import { Queue } from "aws-cdk-lib/aws-sqs";
 
 export interface GeneXusServerlessAngularAppProps extends cdk.StackProps {
   readonly apiName: string;
@@ -44,6 +47,11 @@ export class GeneXusServerlessAngularApp extends Construct {
   iamUser: iam.User;
   DTicket: dynamodb.Table;
   DCache: dynamodb.Table;
+  queueLambdaFunction: lambda.Function;
+  cronLambdaFunction: lambda.Function;
+  lambdaRole: iam.Role;
+  securityGroup: ec2.SecurityGroup;
+  accessKey: iam.CfnAccessKey;
 
   constructor(
     scope: Construct,
@@ -65,130 +73,78 @@ export class GeneXusServerlessAngularApp extends Construct {
       throw new Error("Stage Name cannot be empty");
     }
 
+    // -------------------------------
+    // Lambda Role
+    this.lambdaRoleCreate(props);
+
+    // -------------------------------
+    // IAM User
+    this.iamUserCreate(props);
+
     //----------------------------------
     // VPC
-    this.vpc = this.createVPC( apiName, stageName); 
+    this.createVPC(props); 
     const DynamoGatewayEndpoint = this.vpc.addGatewayEndpoint('Dynamo-endpoint', {
       service: ec2.GatewayVpcEndpointAwsService.DYNAMODB
     });
 
-    //this.vpc.addInterfaceEndpoint(`ssvpc`, {
-    //  service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER
-    //});
     //---------------------------------
     // RDS - MySQL 8.0
-    const dbsecurityGroup = new ec2.SecurityGroup(this, `rds-sg`, {
+    this.securityGroup = new ec2.SecurityGroup(this, `rds-sg`, {
       vpc: this.vpc,
       allowAllOutbound: true
     });
-    // dbsecurityGroup.connections.allowFrom(asgSG, ec2.Port.tcp(3306));
-    dbsecurityGroup.connections.allowFrom(dbsecurityGroup, ec2.Port.tcp(3306));
+    this.securityGroup.connections.allowFrom( this.securityGroup, ec2.Port.tcp(3306));
     if (this.isDevEnv) {
       //Access from MyIP
-      dbsecurityGroup.connections.allowFrom( ec2.Peer.ipv4('100.100.100.100/32'), ec2.Port.tcpRange(1, 65535)); 
+      this.securityGroup.connections.allowFrom( ec2.Peer.ipv4('100.100.100.100/32'), ec2.Port.tcpRange(1, 65535)); 
     }
-    this.dbServer = this.createDB(props, dbsecurityGroup);
+    this.createDB(props);
 
     // ---------------------------------
     // Dynamo
     this.createDynamo(props);
 
-    // ---------------------------------
-    // Security
+    // --------------------------------------
+    // User groups to split policies
+    // Note: Maximum policy size of 2048 bytes exceeded for user
+    const festGroup = new iam.Group(this, 'festival-group-id', {
+      groupName: `${apiName}_${stageName}_festgroup`
+    });
+    festGroup.addUser(this.iamUser);
+    this.DCache.grantReadWriteData( festGroup);
+    this.DTicket.grantReadWriteData( festGroup);
+
     // -------------------------------
+    // Lambda for SQS
+    this.createFestivalTicketsLambdas( props);
 
-    // User to manage the apiname
-    // S3 gx-deploy will be used to deploy the app to aws
-    this.iamUser = new iam.User(this, `${apiName}-user`);
-    this.iamUser.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["s3:*"],
-        resources: ["arn:aws:s3:::gx-deploy/*", "arn:aws:s3:::gx-deploy*"],
-      })
-    );
-    // Grant access to all application lambda functions
-    this.iamUser.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["lambda:*"],
-        resources: [
-          `arn:aws:lambda:${stack.region}:${stack.account}:function:${apiName}_*`,
-        ],
-      })
-    );
-    const accessKey = new iam.CfnAccessKey(this, `${apiName}-accesskey`, {
-      userName: this.iamUser.userName,
-    });
-    this.DCache.grantReadWriteData(this.iamUser);
-    this.DTicket.grantReadWriteData( this.iamUser);
-
-    // Lambda Functions
-    const lambdaRole = new iam.Role(this, `lambda-role`, {
-      assumedBy: new iam.CompositePrincipal(
-        new iam.ServicePrincipal("apigateway.amazonaws.com"),
-        new iam.ServicePrincipal("lambda.amazonaws.com")
-      ),
-      description: "GeneXus Serverless Application Lambda Role",
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaBasicExecutionRole"
-        ),
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaRole"
-        ),
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaVPCAccessExecutionRole"
-        ),
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaSQSQueueExecutionRole"
-        ),
-      ],
-    });
-    
     // -------------------------------
     // SQS Ticket Queue
     const ticketQueue = new sqs.Queue(this, `ticketqueue`, {
       queueName: `${apiName}_${stageName}_ticketqueue`
     });
-
-    // ----------------------------
-    // Lambda for SQS
-    const queueLambdaFunction = new lambda.Function(this, `TicketProcess`, {
-      functionName: `${apiName}_${stageName}_TicketProcess`,
-      runtime: defaultLambdaRuntime,
-      handler: "com.genexus.cloud.serverless.aws.handler.LambdaSQSHandler::handleRequest",
-      code: lambda.Code.fromAsset(__dirname + "/../../bootstrap"), //Empty sample package
-      vpc: this.vpc,
-      //allowPublicSubnet: true,
-      role: lambdaRole,
-      timeout: props?.timeout || lambdaDefaultTimeout,
-      memorySize: props?.memorySize || lambdaDefaultMemorySize,
-      description: `'${
-        props?.apiDescription || apiName
-      }' Queue Ticket Process Lambda function`,
-      logRetention: logs.RetentionDays.ONE_WEEK,
-      securityGroups: [dbsecurityGroup]
-    });
-    // 
-
+    // Some queue permissions
+    ticketQueue.grantConsumeMessages(this.queueLambdaFunction);
+    ticketQueue.grantSendMessages(festGroup);
     // Lambda queue trigger
     const eventSource = new lambdaEventSources.SqsEventSource(ticketQueue);
-    queueLambdaFunction.addEventSource(eventSource);
+    this.queueLambdaFunction.addEventSource(eventSource);
 
-    // Some queue permissions
-    ticketQueue.grantConsumeMessages(queueLambdaFunction);
-    ticketQueue.grantSendMessages(this.iamUser);
-    // -------------------------------
-    // Lambda CRON
-
-    // -------------------------------
+    // -------------------------------------------------------------
     // Angular App Host
-    /*
+    // Maximum policy size of 2048 bytes exceeded for user
+    const appGroup = new iam.Group(this, 'app-group-id', {
+      groupName: `${apiName}_${stageName}_appgroup`
+    });
+    appGroup.addUser(this.iamUser);    
+    
     const websitePublicBucket = new s3.Bucket(this, `${apiName}-bucket-web`, {
       websiteIndexDocument: "index.html",
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     websitePublicBucket.grantPublicAccess();
-    websitePublicBucket.grantReadWrite(user);
+    websitePublicBucket.grantReadWrite(appGroup);
     new iam.PolicyDocument({
       statements: [
         new iam.PolicyStatement({
@@ -202,14 +158,12 @@ export class GeneXusServerlessAngularApp extends Construct {
     const storageBucket = new s3.Bucket(this, `${apiName}-bucket`, {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
-    storageBucket.grantPutAcl(user);
-    storageBucket.grantReadWrite(user);
+    storageBucket.grantPutAcl(appGroup);
+    storageBucket.grantReadWrite(appGroup);
     storageBucket.grantPublicAccess();
-    */
 
     // -----------------------------
     // Backend services
-    /*
     const api = new apigateway.RestApi(this, `${apiName}-apigw`, {
       description: `${apiName} APIGateway Endpoint`,
       restApiName: apiName,
@@ -231,25 +185,30 @@ export class GeneXusServerlessAngularApp extends Construct {
 
     const lambdaFunctionName = `${apiName}_${stageName}`;
     const lambdaFunction = new lambda.Function(this, `${apiName}-function`, {
+      environment: {
+        region: cdk.Stack.of(this).region,
+        GX_FESTIVALTICKETS_QUEUEURL: ticketQueue.queueUrl,
+      },
       functionName: lambdaFunctionName,
       runtime: defaultLambdaRuntime,
       handler: lambdaHandlerName,
       code: lambda.Code.fromAsset(__dirname + "/../../bootstrap"), //Empty sample package
-      //vpc: targetVpc,
+      vpc: this.vpc,
       //allowPublicSubnet: true,
-      role: lambdaRole,
+      role: this.lambdaRole,
       timeout: props?.timeout || lambdaDefaultTimeout,
       memorySize: props?.memorySize || lambdaDefaultMemorySize,
       description: `'${
         props?.apiDescription || apiName
       }' Serverless Lambda function`,
+      securityGroups: [this.securityGroup],
       logRetention: logs.RetentionDays.ONE_WEEK,
     });
     this.DCache.grantReadWriteData(lambdaFunction);
     this.DTicket.grantReadWriteData(lambdaFunction);
-    lambdaFunction.grantInvoke(user);
+    lambdaFunction.grantInvoke(appGroup);
 
-    user.addToPolicy(
+    this.iamUser.addToPolicy(
       new iam.PolicyStatement({
         actions: ["apigateway:*"],
         resources: [
@@ -257,21 +216,7 @@ export class GeneXusServerlessAngularApp extends Construct {
         ],
       })
     );
-
-    user.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["apigateway:*"],
-        resources: [`arn:aws:apigateway:${stack.region}::/restapis*`],
-      })
-    );
-
-    user.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["iam:PassRole"],
-        resources: [lambdaRole.roleArn],
-      })
-    );
-
+    
     const rewriteEdgeFunctionResponse =
       new cloudfront.experimental.EdgeFunction(this, `${apiName}EdgeLambda`, {
         functionName: `${apiName}-${stageName}-EdgeLambda`,
@@ -282,7 +227,7 @@ export class GeneXusServerlessAngularApp extends Construct {
         logRetention: logs.RetentionDays.FIVE_DAYS        
       });
 
-    rewriteEdgeFunctionResponse.grantInvoke(user);
+    rewriteEdgeFunctionResponse.grantInvoke(appGroup);
     rewriteEdgeFunctionResponse.addAlias("live", {});
 
     const originPolicy = new cloudfront.OriginRequestPolicy(
@@ -305,7 +250,7 @@ export class GeneXusServerlessAngularApp extends Construct {
         cookieBehavior: cloudfront.CacheCookieBehavior.all(),
       }
     );
-
+    
     const certificate = props?.certificateARN
       ? acm.Certificate.fromCertificateArn(
           this,
@@ -353,7 +298,24 @@ export class GeneXusServerlessAngularApp extends Construct {
       cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
       originRequestPolicy: originPolicy,
     });
-    */
+
+    new cdk.CfnOutput(this, "WebURL", {
+      value: `https://${webDistribution.domainName}`,
+      description: "Frontend Website URL",
+    });
+
+    new cdk.CfnOutput(this, "ApiURL", {
+      value: `https://${webDistribution.domainName}/${stageName}/`,
+      description: "Services API URL (Services URL)",
+    });
+    new cdk.CfnOutput(this, "WebsiteBucket", {
+      value: websitePublicBucket.bucketName,
+      description: "Bucket Name for Angular WebSite Deployment",
+    });
+    new cdk.CfnOutput(this, "StorageBucket", {
+      value: storageBucket.bucketName,
+      description: "Bucket for Storage Service",
+    });
     
     // Generic
     new cdk.CfnOutput(this, "ApiName", {
@@ -366,65 +328,125 @@ export class GeneXusServerlessAngularApp extends Construct {
     });
     
     // RDS MySQL
-    new cdk.CfnOutput(this, "DB EndPoint", {
+    new cdk.CfnOutput(this, "DBEndPoint", {
       value: this.dbServer.dbInstanceEndpointAddress,
       description: "RDS MySQL Endpoint",
     });
     
-    new cdk.CfnOutput(this, 'DB SecretName', {
+    new cdk.CfnOutput(this, 'DBSecretName', {
       value: this.dbServer.secret?.secretName!,
+      description: "RDS MySQL Secret Name",
     });
+    
+    // Get access to the secret object
+    const dbPasswordSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'db-pwd-id',
+      this.dbServer.secret?.secretName!,
+    );
 
     // Dynamo
-    new cdk.CfnOutput(this, 'Dynamo DCache TableName', { value: this.DCache.tableName });
-    new cdk.CfnOutput(this, 'Dynamo DTicket TableName', { value: this.DTicket.tableName });
-
-    /*
-    new cdk.CfnOutput(this, "WebURL", {
-      value: `https://${webDistribution.domainName}`,
-      description: "Frontend Website URL",
-    });
-
-    new cdk.CfnOutput(this, "ApiURL", {
-      value: `https://${webDistribution.domainName}/${stageName}/`,
-      description: "Services API URL (Services URL)",
-    });
-    */
+    new cdk.CfnOutput(this, 'DynamoDCacheTableName', { value: this.DCache.tableName });
+    new cdk.CfnOutput(this, 'DynamoDTicketTableName', { value: this.DTicket.tableName });
     
     new cdk.CfnOutput(this, "IAMRoleARN", {
-      value: lambdaRole.roleArn,
+      value: this.lambdaRole.roleArn,
       description: "IAM Role ARN",
     });
-    /*
-    new cdk.CfnOutput(this, "WebsiteBucket", {
-      value: websitePublicBucket.bucketName,
-      description: "Bucket Name for Angular WebSite Deployment",
-    });
-    new cdk.CfnOutput(this, "StorageBucket", {
-      value: storageBucket.bucketName,
-      description: "Bucket for Storage Service",
-    });
-    */
 
     new cdk.CfnOutput(this, "AccessKey", {
-      value: accessKey.ref,
+      value: this.accessKey.ref,
       description: "Access Key",
     });
     new cdk.CfnOutput(this, "AccessSecretKey", {
-      value: accessKey.attrSecretAccessKey,
+      value: this.accessKey.attrSecretAccessKey,
       description: "Access Secret Key",
     });
 
-    new cdk.CfnOutput(this, "SQS Ticket Url", {
+    new cdk.CfnOutput(this, "SQSTicketUrl", {
       value: ticketQueue.queueUrl,
       description: "SQS Ticket Url",
     });
 
     new cdk.CfnOutput(this, "LambdaTicketProcess", {
-      value: queueLambdaFunction.functionName,
+      value: this.queueLambdaFunction.functionName,
       description: "Ticket Process Lambda Name",
     });
+
+    new cdk.CfnOutput(this, "LambdaCron", {
+      value: this.cronLambdaFunction.functionName,
+      description: "Ticket Ruffle Lambda Cron",
+    });
   }
+
+  private iamUserCreate(props: GeneXusServerlessAngularAppProps){
+    const stack = cdk.Stack.of(this);
+    const apiName = props?.apiName || "";
+    const stageName = props?.stageName || "";
+
+    this.iamUser = new iam.User(this, `${apiName}-user`);
+
+    // Generic Policies
+    // S3 gx-deploy will be used to deploy the app to aws
+    this.iamUser.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:*"],
+        resources: ["arn:aws:s3:::gx-deploy/*", "arn:aws:s3:::gx-deploy*"],
+      })
+    );
+    // Grant access to all application lambda functions
+    this.iamUser.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["lambda:*"],
+        resources: [
+          `arn:aws:lambda:${stack.region}:${stack.account}:function:${apiName}_*`,
+        ],
+      })
+    );
+
+    this.iamUser.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["apigateway:*"],
+        resources: [`arn:aws:apigateway:${stack.region}::/restapis*`],
+      })
+    );
+
+    this.iamUser.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["iam:PassRole"],
+        resources: [this.lambdaRole.roleArn],
+      })
+    );
+
+    this.accessKey = new iam.CfnAccessKey(this, `${apiName}-accesskey`, {
+      userName: this.iamUser.userName,
+    });
+  }
+
+  private lambdaRoleCreate(props: GeneXusServerlessAngularAppProps){
+    this.lambdaRole = new iam.Role(this, `lambda-role`, {
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal("apigateway.amazonaws.com"),
+        new iam.ServicePrincipal("lambda.amazonaws.com")
+      ),
+      description: "GeneXus Serverless Application Lambda Role",
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaRole"
+        ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaVPCAccessExecutionRole"
+        ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaSQSQueueExecutionRole"
+        ),
+      ],
+    });
+  }
+
   private createDynamo(props: GeneXusServerlessAngularAppProps){
     const apiName = props?.apiName || "";
     const stageName = props?.stageName || "";
@@ -435,24 +457,82 @@ export class GeneXusServerlessAngularApp extends Construct {
       partitionKey: { name: 'DCacheId', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY
     });
+
     this.DTicket = new dynamodb.Table( this, `DTicket`, {
       tableName: `DTicket`,
       partitionKey: { name: 'DTicketId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'DTicketCode', type: dynamodb.AttributeType.NUMBER},
       removalPolicy: cdk.RemovalPolicy.DESTROY
     });
+
+    this.DTicket.addGlobalSecondaryIndex({
+      indexName: 'TicketCodeIndex',
+      partitionKey: {name: 'DTicketCode', type: dynamodb.AttributeType.STRING},
+      readCapacity: 1,
+      writeCapacity: 1,
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    this.DTicket.addGlobalSecondaryIndex({
+      indexName: 'EmailIndex',
+      partitionKey: {name: 'DEventId', type: dynamodb.AttributeType.NUMBER},
+      sortKey: {name: 'DUserEmail', type: dynamodb.AttributeType.STRING},
+      readCapacity: 1,
+      writeCapacity: 1,
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+  }
+  private createFestivalTicketsLambdas(props: GeneXusServerlessAngularAppProps){
+    const apiName = props?.apiName || "";
+    const stageName = props?.stageName || "";
+
+    this.queueLambdaFunction = new lambda.Function(this, `TicketProcess`, {
+      functionName: `${apiName}_${stageName}_TicketProcess`,
+      runtime: defaultLambdaRuntime,
+      handler: "com.genexus.cloud.serverless.aws.handler.LambdaSQSHandler::handleRequest",
+      code: lambda.Code.fromAsset(__dirname + "/../../bootstrap"), //Empty sample package
+      vpc: this.vpc,
+      //allowPublicSubnet: true,
+      role: this.lambdaRole,
+      timeout: props?.timeout || lambdaDefaultTimeout,
+      memorySize: props?.memorySize || lambdaDefaultMemorySize,
+      description: `'${
+        props?.apiDescription || apiName
+      }' Queue Ticket Process Lambda function`,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      securityGroups: [this.securityGroup]
+    });
+
+    // Lambda CRON
+    this.cronLambdaFunction = new lambda.Function(this, `CronLambda`, {
+      functionName: `${apiName}_${stageName}_Cron`,
+      runtime: defaultLambdaRuntime,
+      handler: "com.genexus.cloud.serverless.aws.handler.LambdaEventBridgeHandler::handleRequest",
+      code: lambda.Code.fromAsset(__dirname + "/../../bootstrap"), //Empty sample package
+      vpc: this.vpc,
+      //allowPublicSubnet: true,
+      role: this.lambdaRole,
+      timeout: props?.timeout || lambdaDefaultTimeout,
+      memorySize: props?.memorySize || lambdaDefaultMemorySize,
+      description: `'${
+        props?.apiDescription || apiName
+      }' Cron Process Lambda function`,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      securityGroups: [this.securityGroup]
+    });
+    //EventBridge rule which runs every five minutes
+    const cronRule = new Rule(this, 'CronRule', {
+      schedule: Schedule.expression('cron(0/10 * * * ? *)')
+    })
+    cronRule.addTarget(new LambdaFunction(this.cronLambdaFunction));
   }
 
-  private createDB(props: GeneXusServerlessAngularAppProps, sg: ec2.SecurityGroup): rds.DatabaseInstance{
+  private createDB(props: GeneXusServerlessAngularAppProps){
     const apiName = props?.apiName || "";
     const stageName = props?.stageName || "";
 
     const instanceIdentifier = `${apiName}-${stageName}-db`;
 
-    //Allow from CodeBuild
-    // dbsecurityGroup.connections.allowFrom(Peer.ipv4('34.228.4.208/28'), ec2.Port.tcp(3306)); //Access from GeneXus
-
-    return new rds.DatabaseInstance(this, `${apiName}-db`, {
+    this.dbServer = new rds.DatabaseInstance(this, `${apiName}-db`, {
       publiclyAccessible: this.isDevEnv,
       vpcSubnets: {
         onePerAz: true,
@@ -467,42 +547,17 @@ export class GeneXusServerlessAngularApp extends Construct {
       engine: rds.DatabaseInstanceEngine.mysql({
         version: rds.MysqlEngineVersion.VER_8_0
       }),
-      securityGroups: [sg],
+      securityGroups: [this.securityGroup],
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
       removalPolicy: this.isDevEnv ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN
     })
-    
-    // potentially allow connections to the RDS instance...
-    // dbServer.connections.allowFrom ...
   }
-  private createVPC( apiName: string, stageName: string): ec2.Vpc {
-    /*
-        new Vpc(this, `${apiName}-vpc`, {
-      vpcName: `${apiName}-${stageName}-vpc`,
-      subnetConfiguration: [{
-        cidrMask: 24,
-        name: 'private',
-        subnetType: SubnetType.PRIVATE_WITH_NAT,
-      },
-      {
-        cidrMask: 28,
-        name: 'rds',
-        subnetType: SubnetType.PRIVATE_ISOLATED,
-      },
-      {
-        cidrMask: 24,
-        name: 'public',
-        subnetType: SubnetType.PUBLIC,
-      }
-      ]
-    })
-    */
 
-/*
-        
-*/
+  private createVPC(props: GeneXusServerlessAngularAppProps){
+    const apiName = props?.apiName || "";
+    const stageName = props?.stageName || "";
 
-    return new ec2.Vpc(this, `vpc`, {
+    this.vpc = new ec2.Vpc(this, `vpc`, {
       vpcName: `${apiName}-${stageName}-vpc`,
       subnetConfiguration: [
         {
