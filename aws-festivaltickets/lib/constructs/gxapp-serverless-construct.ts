@@ -52,6 +52,7 @@ export class GeneXusServerlessAngularApp extends Construct {
   lambdaRole: iam.Role;
   securityGroup: ec2.SecurityGroup;
   accessKey: iam.CfnAccessKey;
+  envVars: any = {};
 
   constructor(
     scope: Construct,
@@ -87,7 +88,7 @@ export class GeneXusServerlessAngularApp extends Construct {
     const DynamoGatewayEndpoint = this.vpc.addGatewayEndpoint('Dynamo-endpoint', {
       service: ec2.GatewayVpcEndpointAwsService.DYNAMODB
     });
-
+    
     //---------------------------------
     // RDS - MySQL 8.0
     this.securityGroup = new ec2.SecurityGroup(this, `rds-sg`, {
@@ -116,14 +117,24 @@ export class GeneXusServerlessAngularApp extends Construct {
     this.DTicket.grantReadWriteData( festGroup);
 
     // -------------------------------
-    // Lambda for SQS
-    this.createFestivalTicketsLambdas( props);
-
-    // -------------------------------
     // SQS Ticket Queue
     const ticketQueue = new sqs.Queue(this, `ticketqueue`, {
       queueName: `${apiName}_${stageName}_ticketqueue`
     });
+
+    // -------------------------------
+    // Environment variables
+    this.envVars[`GX_FESTIVALTICKETS_QUEUEURL`] = ticketQueue.queueUrl;
+    this.envVars[`GX_DEFAULT_DB_URL`] = `jdbc:mysql://${this.dbServer.dbInstanceEndpointAddress}/festivaltickets?useSSL=false`;
+    this.envVars[`GX_DEFAULT_USER_ID`] = this.dbServer.secret?.secretValueFromJson('username');
+    this.envVars[`GX_DEFAULT_USER_PASSWORD`] = this.dbServer.secret?.secretValueFromJson('password');
+    this.envVars[`GX_DYNAMODBDS_USER_ID`] = this.accessKey.ref;
+    this.envVars[`GX_DYNAMODBDS_USER_PASSWORD`] = this.accessKey.attrSecretAccessKey;
+
+    // -------------------------------
+    // FestivalTickets Lambdas (SQS & CRON)
+    this.createFestivalTicketsLambdas( props);
+    
     // Some queue permissions
     ticketQueue.grantConsumeMessages(this.queueLambdaFunction);
     ticketQueue.grantSendMessages(festGroup);
@@ -185,10 +196,7 @@ export class GeneXusServerlessAngularApp extends Construct {
 
     const lambdaFunctionName = `${apiName}_${stageName}`;
     const lambdaFunction = new lambda.Function(this, `${apiName}-function`, {
-      environment: {
-        region: cdk.Stack.of(this).region,
-        GX_FESTIVALTICKETS_QUEUEURL: ticketQueue.queueUrl,
-      },
+      environment: this.envVars,
       functionName: lambdaFunctionName,
       runtime: defaultLambdaRuntime,
       handler: lambdaHandlerName,
@@ -487,6 +495,7 @@ export class GeneXusServerlessAngularApp extends Construct {
 
     this.queueLambdaFunction = new lambda.Function(this, `TicketProcess`, {
       functionName: `${apiName}_${stageName}_TicketProcess`,
+      environment: this.envVars,
       runtime: defaultLambdaRuntime,
       handler: "com.genexus.cloud.serverless.aws.handler.LambdaSQSHandler::handleRequest",
       code: lambda.Code.fromAsset(__dirname + "/../../bootstrap"), //Empty sample package
@@ -505,6 +514,7 @@ export class GeneXusServerlessAngularApp extends Construct {
     // Lambda CRON
     this.cronLambdaFunction = new lambda.Function(this, `CronLambda`, {
       functionName: `${apiName}_${stageName}_Cron`,
+      environment: this.envVars,
       runtime: defaultLambdaRuntime,
       handler: "com.genexus.cloud.serverless.aws.handler.LambdaEventBridgeHandler::handleRequest",
       code: lambda.Code.fromAsset(__dirname + "/../../bootstrap"), //Empty sample package
