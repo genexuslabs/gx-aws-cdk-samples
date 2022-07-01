@@ -35,7 +35,7 @@ export interface GeneXusServerlessAngularAppProps extends cdk.StackProps {
 
 const lambdaHandlerName =
   "com.genexus.cloud.serverless.aws.LambdaHandler::handleRequest";
-const lambdaDefaultMemorySize = 1024;
+const lambdaDefaultMemorySize = 8192;
 const lambdaDefaultTimeout = cdk.Duration.seconds(30);
 const defaultLambdaRuntime = lambda.Runtime.JAVA_11;
 const rewriteEdgeLambdaHandlerName = "rewrite.handler";
@@ -124,6 +124,7 @@ export class GeneXusServerlessAngularApp extends Construct {
 
     // -------------------------------
     // Environment variables
+    this.envVars[`REGION`] = cdk.Stack.of(this).region;
     this.envVars[`GX_FESTIVALTICKETS_QUEUEURL`] = ticketQueue.queueUrl;
     this.envVars[`GX_DEFAULT_DB_URL`] = `jdbc:mysql://${this.dbServer.dbInstanceEndpointAddress}/festivaltickets?useSSL=false`;
     this.envVars[`GX_DEFAULT_USER_ID`] = this.dbServer.secret?.secretValueFromJson('username');
@@ -134,7 +135,7 @@ export class GeneXusServerlessAngularApp extends Construct {
     // -------------------------------
     // FestivalTickets Lambdas (SQS & CRON)
     this.createFestivalTicketsLambdas( props);
-    
+
     // Some queue permissions
     ticketQueue.grantConsumeMessages(this.queueLambdaFunction);
     ticketQueue.grantSendMessages(festGroup);
