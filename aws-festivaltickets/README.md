@@ -6,10 +6,9 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 See [this useful workshop](https://cdkworkshop.com/20-typescript.html) on working with the AWS CDK for Typescript projects.
 
 ## Build
-cdk bootstrap --profile gxsincrum
+cdk bootstrap aws://ACCOUNT-NUMBER/AWS-REGION
 npm run build
-
-cdk deploy --app "node ./bin/create-serverless-app.js" -c appname=festival -c stage=test --profile gxsincrum
+cdk deploy --app "node ./bin/create-serverless-app.js" -c name=myGXSlsApp -c stage=test
 
 ## Items created by this script
 * VPC
