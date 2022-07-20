@@ -1,9 +1,7 @@
 # Welcome to FestivalTickets CDK TypeScript project!
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-## Tutorial  
-See [this useful workshop](https://cdkworkshop.com/20-typescript.html) on working with the AWS CDK for Typescript projects.
+For more information about FestivalTickets, follow this link:
+[FestivalTickets Sample](https://wiki.genexus.com/commwiki/servlet/wiki?51266,KB%3AFestivalTickets+-+High+Scalability+Sample)
 
 ## Build
 cdk bootstrap aws://ACCOUNT-NUMBER/AWS-REGION
@@ -28,7 +26,6 @@ cdk deploy --app "node ./bin/create-serverless-app.js" -c name=myGXSlsApp -c sta
 * Lambda (backend)
 * Lambda (rewrite)
 * Cloudfront - GeneXus Angular Rewrite Lambda
-
 
 ## Useful commands
 
