@@ -1,0 +1,29 @@
+{
+  "name": "aws-festivaltickets",
+  "version": "0.1.0",
+  "bin": {
+    "create-serverless-app": "bin/create-serverless-app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk"
+  },
+  "peerDependencies": {
+    "aws-cdk-lib": "^2.0.0",
+    "constructs": "^10.0.0"
+  },  
+  "devDependencies": {
+    "@types/jest": "^27.0.3",
+    "@types/node": "16.11.11",
+    "jest": "^27.4.3",
+    "ts-jest": "^27.0.7",
+    "ts-node": "^10.4.0",
+    "typescript": "~4.5.2"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.0.0",
+    "constructs": "^10.0.0"
+  }
+}

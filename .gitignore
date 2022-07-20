@@ -106,3 +106,5 @@ aws-serverless/bin/*.js
 aws-serverless/lib/constructs/*.js
 aws-serverless/lib/*.js
 
+aws-festivaltickets/bin/*.js
+aws-festivaltickets/lib/**/*.js
