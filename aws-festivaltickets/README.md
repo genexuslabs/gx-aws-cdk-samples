@@ -4,8 +4,8 @@ For more information about FestivalTickets, follow this link:
 [FestivalTickets Sample](https://wiki.genexus.com/commwiki/servlet/wiki?51266,KB%3AFestivalTickets+-+High+Scalability+Sample)
 
 ## Build
-cdk bootstrap aws://ACCOUNT-NUMBER/AWS-REGION
-npm run build
+cdk bootstrap aws://ACCOUNT-NUMBER/AWS-REGION\
+npm run build\
 cdk deploy --app "node ./bin/create-serverless-app.js" -c name=myGXSlsApp -c stage=test
 
 ## Items created by this script
