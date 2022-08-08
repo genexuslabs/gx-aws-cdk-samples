@@ -1,13 +1,28 @@
-# Welcome to your CDK TypeScript project!
+# AWS Serverless GeneXus Application
+This sample creates all the infrastructure necessary for publish AWS Serverless GeneXus Application.
 
-You should explore the contents of this project. It demonstrates a CDK app with an instance of a stack (`AwsServerlessStack`)
-which contains an Amazon SQS queue that is subscribed to an Amazon SNS topic.
+This stack will Deploy:
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+- AWS Cloudfront for CDN
+- AWS S3 Bucket for Angular Website hosting
+- AWS S3 Bucket for private storage
+- IAM Credentials with minimal permission
+- Lambda@Edge for Angular URL Rewrite Rules
+- AWS Lambda function for compute
+- AWS API Gateway for Deploying Services (OpenAPI)
 
-## Tutorial  
-See [this useful workshop](https://cdkworkshop.com/20-typescript.html) on working with the AWS CDK for Typescript projects.
-
+## Running the script
+Run in your cmd: 
+```
+//Navigate to a folder of your preference
+npm i aws-cdk -g
+git clone https://github.com/genexuslabs/gx-aws-cdk-samples.git
+cd gx-aws-cdk-samples/aws-serverless
+npm install
+npm run build
+cdk bootstrap aws://ACCOUNT-NUMBER/AWS-REGION
+cdk deploy --app "node ./bin/create-serverless-app.js" -c name=myGXSlsApp -c stage=test
+```
 
 ## Useful commands
 
