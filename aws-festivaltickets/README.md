@@ -23,6 +23,9 @@ This stack will Deploy:
 * AWS Lambda (rewrite)
 * Amazon Cloudfront - GeneXus Angular Rewrite Lambda
 
+## Disclaimer
+By running this code you may incur in AWS infrastructure costs.
+
 ## Running the script
 Run in your cmd: 
 ```
