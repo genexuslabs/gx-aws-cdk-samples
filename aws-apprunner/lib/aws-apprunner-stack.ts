@@ -124,7 +124,7 @@ export class AwsApprunnerStack extends Stack {
     const vpc = this.vpc;
     const vpcConnector = new apprunner.VpcConnector(this, 'VpcConnector', {
       vpc,
-      vpcSubnets: this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PUBLIC }),
+      vpcSubnets: this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }),
       vpcConnectorName: `${this.appName}_${this.stageName}_VpcConnector`,
       securityGroups: [this.securityGroup]
     });
@@ -275,7 +275,7 @@ export class AwsApprunnerStack extends Stack {
       publiclyAccessible: this.isDevEnv,
       vpcSubnets: {
         onePerAz: true,
-        subnetType: this.isDevEnv ? ec2.SubnetType.PUBLIC : ec2.SubnetType.PRIVATE_ISOLATED
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED
       },
       credentials: rds.Credentials.fromGeneratedSecret('dbadmin'),
       vpc: this.vpc,
