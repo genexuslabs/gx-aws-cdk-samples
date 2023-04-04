@@ -8,4 +8,6 @@ Pre requisites:
 
 ## Samples
 * [AWS Serverless GeneXus Application](aws-serverless/README.md)
-* [FestivalTickets](aws-festivaltickets/README.md)
+
+## Related links
+* [FestivalTickets IaC](https://github.com/genexuslabs/FestivalTickets)
